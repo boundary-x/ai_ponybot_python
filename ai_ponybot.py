@@ -2,6 +2,8 @@
 
 from microbit import sleep, i2c
 import math, ustruct
+from machine import time_pulse_us
+import utime
 
 # PCA9685 레지스터 상수
 PCA9685_ADDRESS = 0x40
@@ -242,3 +244,38 @@ class PonyServo:
             raise ValueError("서보 번호는 1~8 사이여야 합니다.")
         channel = servo_num + 7
         self.pwm.set_duty(channel, 0)
+
+from machine import time_pulse_us
+from microbit import sleep
+import utime
+
+class PonySonar:
+    """초음파 센서 거리 측정 클래스 (정수 cm 반환)"""
+
+    def __init__(self, timeout_us=30000):
+        self.timeout = timeout_us
+
+    def measure(self, trig_pin, echo_pin):
+        """
+        trig_pin: 송신 핀 (예: pin13)
+        echo_pin: 수신 핀 (예: pin14)
+        반환값: 거리(cm, 정수형), 실패 시 -1
+        """
+        trig_pin.write_digital(0)
+        utime.sleep_us(2)
+        trig_pin.write_digital(1)
+        utime.sleep_us(10)
+        trig_pin.write_digital(0)
+
+        try:
+            duration = time_pulse_us(echo_pin, 1, self.timeout)
+        except OSError:
+            return -1  # 타임아웃
+
+        distance = duration * 0.017  # 거리 계산 (cm)
+        distance = int(distance)     # 소수점 제거 → 정수 cm
+
+        if distance < 2 or distance > 400:
+            return -1
+
+        return distance
