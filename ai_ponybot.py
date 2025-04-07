@@ -254,10 +254,6 @@ class PonyServo:
         channel = servo_num + 7
         self.pwm.set_duty(channel, 0)
 
-from machine import time_pulse_us
-from microbit import sleep
-import utime
-
 class PonySonar:
     """초음파 센서 거리 측정 클래스 (정수 cm 반환)"""
 
@@ -288,7 +284,6 @@ class PonySonar:
             return -1
 
         return distance
-
 
 
 class PonyOLED:
