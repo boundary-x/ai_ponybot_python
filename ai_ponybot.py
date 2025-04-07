@@ -433,3 +433,84 @@ FONT_5X7 = bytes([
     0x44,0x64,0x54,0x4C,0x44, 0x00,0x08,0x36,0x41,0x00, 0x00,0x00,0x7F,0x00,0x00,
     0x00,0x41,0x36,0x08,0x00, 0x10,0x08,0x08,0x10,0x08, 0x78,0x46,0x41,0x46,0x78
 ])
+
+class PonyColor:
+    """TCS34725 색상 센서 제어 클래스"""
+    def __init__(self, i2c, address=0x29):
+        self.i2c = i2c
+        self.address = address
+        self.is_setup = False
+        self.setup()
+
+    def _write_byte(self, reg, value):
+        self.i2c.write(self.address, bytes([0x80 | reg, value]))
+
+    def _read_word(self, reg):
+        self.i2c.write(self.address, bytes([0x80 | reg]))
+        data = self.i2c.read(self.address, 2)
+        return data[1] << 8 | data[0]
+
+    def _read_raw_data(self):
+        """[C, R, G, B] 반환"""
+        self.setup()
+        data = []
+        for offset in range(4):
+            data.append(self._read_word(0x14 + offset * 2))
+        return data
+
+    def setup(self):
+        if self.is_setup:
+            return
+        self.is_setup = True
+        self._write_byte(0x00, 0x03)  # ENABLE: PON | AEN
+        self._write_byte(0x01, 0xD5)  # ATIME: 103ms (255 - 통합 시간)
+
+    def set_integration_time(self, time_ms):
+        """
+        통합 시간 설정 (0~612ms)
+        time_ms: 2.4 ~ 612ms → 내부적으로 0~255 범위로 변환
+        """
+        time_val = max(0, min(255, int(255 - (time_ms / 2.4))))
+        self._write_byte(0x01, time_val)
+
+    def light(self):
+        """Clear 채널 밝기 값"""
+        return self._read_raw_data()[0]
+
+    def rgb(self):
+        """정규화된 RGB (0~255)"""
+        data = self._read_raw_data()
+        c, r, g, b = data
+        if c == 0:
+            return [0, 0, 0]
+        return [int(r * 255 / c), int(g * 255 / c), int(b * 255 / c)]
+
+    def is_color(self, target, threshold=40):
+        """
+        색상 판별: "red", "green", "blue", "yellow"
+        threshold: 민감도 (기본 40)
+        """
+        r, g, b = self.rgb()
+        c = self.light()
+        if c < 100:
+            return False
+        total = r + g + b
+        if total == 0:
+            return False
+        rr, gr, br = r / total, g / total, b / total
+        t = threshold / 255
+
+        if target == "red":
+            return rr > gr + t and rr > br + t and rr > 0.4
+        elif target == "green":
+            return gr > rr + t and gr > br + t and gr > 0.4
+        elif target == "blue":
+            return br > rr + t and br > gr + t * 0.8 and br > 0.35
+        elif target == "yellow":
+            return rr > br + t and gr > br + t and abs(rr - gr) < 0.1 and rr + gr > 0.6
+        else:
+            return False
+
+    def is_in_range(self, min_r, max_r, min_g, max_g, min_b, max_b):
+        r, g, b = self.rgb()
+        return (min_r <= r <= max_r) and (min_g <= g <= max_g) and (min_b <= b <= max_b)
