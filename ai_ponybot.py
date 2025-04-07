@@ -210,7 +210,6 @@ class PonyMotor:
         else:
             raise ValueError("direction_code는 1, 2, 3, 4, 5, 6, 7, 8, 9 중 하나여야 합니다.")
             
-import math  # 이미 있을 수 있음
 
 class PonyServo:
     """포니봇 서보모터 제어 클래스 (PCA9685 기반)."""
